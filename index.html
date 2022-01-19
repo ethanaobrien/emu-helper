@@ -1,0 +1,193 @@
+<html>
+<head>
+    <link rel="stylesheet" href="main.css">
+</head>
+<body>
+    <br>
+    <div id="main">
+        <a class="blockB" id="start">Add game</a>
+        <br><br><br>
+        <ul>
+            <h2>Current Games</h2>
+            <ul id="gameList">
+                
+            </ul>
+            <br><br>
+            <p>URLs</p>
+            <ul id="urls">
+            
+        </ul>
+        <br><br><br>
+        <button id="refreshCoreFiles" style="display:block;">Refresh emlatorjs files</button>
+    </div>
+    <ul id="systemSelect" style="display:none;">
+        <h1>Select System</h1>
+        <ul id="radioContainer"></ul>
+        <a class="blockB" id="systemSelected" style="float:right;margin:20px;">Next ></a>
+    </ul>
+    <ul id="select2" style="display:none;">
+        <ul>
+            <label class="textBox">Game Rom:
+                <input type="file" id="gameRom">
+            </label>
+            <br>
+            <label class="container" id="sgol">Start Game On Page Load
+                <input type="checkbox" id="startOnLoad">
+                <span class="checkmark2"></span>
+            </label>
+            <label class="container" style="display:none;" id="sm">SNES Mouse
+                <input type="checkbox" id="snesMouse">
+                <span class="checkmark2"></span>
+            </label>
+            <label class="container" style="display:none;" id="smt">SNES Multitap
+                <input type="checkbox" id="snesMultiTap">
+                <span class="checkmark2"></span>
+            </label>
+            <label class="container" style="display:none;" id="lg">Lightgun
+                <input type="checkbox" id="lightgun">
+                <span class="checkmark2"></span>
+            </label>
+            <br>
+            <label class="textBox">Name Of Game (for save files)
+                <input type="text" id="nameOfGame">
+            </label>
+            <br>
+            <label class="textBox">Hex Color theme
+                <input type="text" id="ejsColor">
+            </label>
+            <br>
+            <label class="textBox" style="display:none;" id="bf">Bios File:
+                <input type="file" id="biosFile">
+            </label>
+            <br>
+            <label class="textBox" id="ss">Save state (to be loaded on start)
+                <input type="file" id="stateOnLoad">
+            </label>
+            <div id="errors"></div>
+        </ul>
+        <a class="blockB" id="generateFile" style="float:right;margin:20px;">Add game</a>
+    </ul>
+    <script src="systems.js"></script>
+    <script>
+        async function updateGameList() {
+            var elem = document.getElementById('gameList')
+            var games = await api.sendMsg({type: 'get games'})
+            var html = '';
+            for (var i=0; i<games.length; i++) {
+                var name = (typeof games[i]['EJS_gameName'] === String) ? games[i]['EJS_gameName'] : games[i].fileName.split('.')[0];
+                html += '<li>'+name+'</li>';
+            }
+            elem.innerHTML = html;
+        }
+        window.addEventListener('load', async function() {
+            var port = 8082;
+            var urls = await api.sendMsg({type: 'getIps'})
+            var text = ''
+            for (var i=0; i<urls.length; i++) {
+                text += '<li><a href="http://'+urls[i]+':'+port+'/" target="_blank" onclick="window.api.openExternal(this.href);event.preventDefault()">http://'+urls[i]+':'+port+'/</a></li>\n';
+            }
+            document.getElementById('urls').innerHTML = text;
+            var radioContainer = document.getElementById('radioContainer')
+            var labelHTML = '';
+            for (var i=0; i<systems.length; i++) {
+                labelHTML += '<label class="container">'+systems[i].name+'\n<input type="radio" name="systemSelect" value='+systems[i].core+'>\n<span class="checkmark"></span>\n</label>'
+            }
+            radioContainer.innerHTML = labelHTML
+            setInterval(updateGameList, 3000)
+        })
+        document.getElementById('refreshCoreFiles').addEventListener('click', function() {
+            api.sendMsg({type: 'refresh data directory'})
+        })
+        var startBtn = document.getElementById('start');
+        var systemSelect = document.getElementById('systemSelect');
+        var select2 = document.getElementById('select2');
+        startBtn.addEventListener('click', function(e) {
+            document.getElementById('main').style = "display:none;"
+            systemSelect.style = "display:block;"
+        })
+        document.getElementById('systemSelected').addEventListener('click', function(e) {
+            window.scrollTo(0, 0);
+            var q = false;
+            var radios = document.getElementsByName('systemSelect');
+            for (var i=0; i<radios.length; i++) {
+                if (radios[i].checked) {
+                    var q = radios[i].value;
+                    break;
+                };
+            };
+            if (! q) {return};
+            for (var i=0; i<systems.length; i++) {
+                if (systems[i].core === q) {
+                    q = systems[i]
+                    break
+                }
+            }
+            if (q.lightgun) {
+                document.getElementById('lg').style = "display:block;"
+            }
+            if (q.bios) {
+                document.getElementById('bf').style = "display:block;"
+            }
+            if (q.mouse) {
+                document.getElementById('sm').style = "display:block;"
+            }
+            if (q.multitap) {
+                document.getElementById('smt').style = "display:block;"
+            }
+            window.selectedCoreData = q;
+            systemSelect.style = "display:none;"
+            select2.style = "display:block;"
+        })
+        document.getElementById('generateFile').addEventListener('click', async function(e) {
+            var data = {}
+            var file = document.getElementById('gameRom').files[0]
+            var ejsColor = document.getElementById('ejsColor')
+            var errors = document.getElementById('errors')
+            var npGameId = document.getElementById('npGameId')
+            var path2Data = document.getElementById('path2Data')
+            var biosFile = document.getElementById('biosFile')
+            var offline = document.getElementById('offline')
+            var stateOnLoad = document.getElementById('stateOnLoad')
+            if (ejsColor.value && ejsColor.value.trim() !== '') {
+                if (!/^#([0-9a-fA-f]{3}|[0-9a-fA-f]{6})$/.test(ejsColor.value)) {
+                    errors.innerHTML = '<p><span style="color:red;font-size:25px;">An error occured</span></p><ul><li>Color theme is not hex value</li></ul>';
+                    return
+                }
+            }
+            if (! file) {
+                errors.innerHTML = '<p><span style="color:red;font-size:25px;">An error occured</span></p><ul><li>No rom file selected</li></ul>';
+                return
+            }
+            var gameName = (document.getElementById('nameOfGame').value && document.getElementById('nameOfGame').value.trim() !== '') ? document.getElementById('nameOfGame').value : file.name;
+            data['EJS_core'] = window.selectedCoreData.core;
+            if (document.getElementById('snesMouse').checked) {
+                data['EJS_mouse'] = true;
+            }
+            if (document.getElementById('snesMultiTap').checked) {
+                data['EJS_multitap'] = true;
+            }
+            if (document.getElementById('nameOfGame').value && document.getElementById('nameOfGame').value.trim() !== '') {
+                data['EJS_gameName'] = document.getElementById('nameOfGame').value;
+            }
+            if (ejsColor.value && ejsColor.value.trim() !== '') {
+                data['EJS_color'] = ejsColor.value;
+            }
+            if (document.getElementById('startOnLoad').checked) {
+                data['EJS_startOnLoaded'] = true;
+            }
+            if (window.selectedCoreData.netplay) {
+                data.netplay = true
+            }
+            data.fileName = file.name
+            var reader = new FileReader()
+            reader.onload = function(e) {
+                data['gameData'] = new Uint8Array(e.target.result)
+                api.sendMsg({type: 'new game', data: data})
+            }
+            reader.readAsArrayBuffer(file)
+            select2.style = "display:none;";
+            document.getElementById('main').style = "display:block;";
+        })
+    </script>
+</body>
+</html>
